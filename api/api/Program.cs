@@ -1,97 +1,124 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Services.AddCors(options =>
-{
-    options.AddPolicy("AcessoTotal",
-        builder => builder
-            .AllowAnyOrigin()
-            .AllowAnyHeader()
-            .AllowAnyMethod());
-});
+builder.Services.AddDbContext<Context>();
+
+builder.Services.AddCors(
+    options =>
+    {
+        options.AddPolicy("AcessoTotal",
+            builder => builder.
+                AllowAnyOrigin().
+                AllowAnyHeader().
+                AllowAnyMethod());
+    }
+);
 
 var app = builder.Build();
-
-app.MapGet("/", () => "Prova Substitutiva - Nicolas");
 app.UseCors("AcessoTotal");
 
-
-// app.MapPut("/produtos/alterar/{id}", ([FromServices] Context ctx, [FromBody] Produto produtoAlterado) =>
-// {
-//     Produto? produto = ctx.Produtos.Find(produtoAlterado.id);
-    
-//     if (produto is null) return Results.NotFound("Produto não encontrado!");
-    
-//     produto.Nome = produtoAlterado.Nome;
-//     produto.Descricao = produtoAlterado.Descricao;
-//     produto.Tamanho = produtoAlterado.Tamanho;
-//     produto.Tecido = produtoAlterado.Tecido;
-//     produto.Valor = produtoAlterado.Valor;
-
-//     ctx.Produtos.Update(produto);
-//     ctx.SaveChanges();
-
-//     return Results.Ok("Produto alterado com sucesso!");
-// });
-
-
-
-// if (folha is null)
-// {
-//     return Results.NotFound();
-// }
-// return Results.Ok(folha);
-
-
-// lISTAR
-app.MapGet("/api/folha/listar", ([FromServices] Context ctx) =>
+// ALTERAR
+app.MapPut("/api/alterar/aluno/{id}", ([FromServices] Context ctx, [FromBody] Aluno AlunoAlterado) =>
 {
+    Aluno? Aluno = ctx.Alunos.Find(AlunoAlterado.Id);
     
-// ([FromServices] Context ctx, [FromRoute] int mes, [FromRoute] int ano, [FromRoute] string cpf) =>
-// Folha? folha = ctx.Folhas.Include(x => x.Funcionario).
-//     FirstOrDefault(f => f.Funcionario.CPF == cpf && f.Mes == mes && f.Ano == ano);
-// Buscar uma folha por cpf do funcionário/ mes / ano da folha
-// return Results.Ok(folha);
+    if (Aluno is null) return Results.NotFound("Aluno não encontrado!");
+    
+    Aluno.Nome = AlunoAlterado.Nome;
+    Aluno.DataNasc = AlunoAlterado.DataNasc;
 
-    return Results.Ok(ctx.Folhas.Include(x => x.Funcionario).ToList()); //inclui informação da folha e do funcionário junto
+    ctx.Alunos.Update(Aluno);
+    ctx.SaveChanges();
+
+    return Results.Ok("Aluno alterado com sucesso!");
 });
 
-app.MapGet("/produtos/listar", ([FromServices] Context ctx) =>
+app.MapPut("/api/alterar/imc/{id}", ([FromServices] Context ctx, [FromBody] Imc ImcAlterado, [FromRoute] int id) =>
 {
-    if (ctx.Produtos.Any())
-    {
-        return Results.Ok(ctx.Produtos.ToList());
-    }
-    return Results.NotFound("Nenhum produto encontrado");
+
+    Imc? Imc = ctx.Imcs.FirstOrDefault(a => a.AlunoId == id);
+    
+    if (Imc is null) return Results.NotFound("Imc não encontrado ou não cadastrado!");
+    Aluno? Alun = ctx.Alunos.Find(Imc.AlunoId);
+
+    Imc.Aluno = Alun;
+    Imc.Peso = ImcAlterado.Peso;
+    Imc.Altura = ImcAlterado.Altura;
+    Imc.Im = ImcAlterado.Peso/(ImcAlterado.Altura * ImcAlterado.Altura);
+    
+    if(Imc.Im < 18.5) Imc.Classificacao = "Magreza - GRAU 0";
+    if(Imc.Im >= 18.6) Imc.Classificacao = "Normal - GRAU 0";
+    if(Imc.Im >= 25.0) Imc.Classificacao = "Sobrepeso - GRAU I";
+    if(Imc.Im >= 30.0) Imc.Classificacao = "Obesidade - GRAU II";
+    if(Imc.Im >= 40.0) Imc.Classificacao = "Obesidade Grave - GRAU III";
+    
+    ctx.Imcs.Update(Imc);
+    ctx.SaveChanges();
+    return Results.Created("", Imc);
 });
 
 // CADASTRAR
-app.MapPost("/produtos/cadastrar", ([FromServices] Context ctx, [FromBody] Produto produto) =>
+app.MapPost("api/alunos/cadastrar", ([FromServices] Context ctx, [FromBody] Aluno Aluno) =>
 {
-    
-// Funcionario? funcionario = ctx.Funcionarios.Find(folha.FuncionarioId); 
-// verifica se usuario da folha existe para depois cadastrar
-// if (funcionario is null) return Results.NotFound("Funcionário não encontrado");
-
-    ctx.Produtos.Add(produto);
+    ctx.Alunos.Add(Aluno);
     ctx.SaveChanges();
-    return Results.Created("Cadastrado com sucesso", produto);
+    return Results.Created("", Aluno);
 });
 
-// DELETAR
-app.MapDelete("/produtos/deletar/{id}", ([FromServices] Context ctx, [FromRoute] int id) =>
+// CADASTRAR
+app.MapPost("api/imc/cadastrar/{id}", ([FromServices] Context ctx, [FromBody] Imc NovoImc, [FromRoute] int id) =>
 {
-    Produto? produto = ctx.Produtos.Find(id);
-    if (produto is null)
-    {
-        return Results.NotFound("Produto não encontrado!");
-    }
+    Imc? Imc = ctx.Imcs.FirstOrDefault(a => a.AlunoId == id);
     
-    ctx.Produtos.Remove(produto);
-    ctx.SaveChanges();
+    if (Imc is null) Imc = new Imc();
 
-    return Results.Ok("Produto deletado com sucesso!");
+    Aluno? Aluno = ctx.Alunos.FirstOrDefault(a => a.Id == id);
+
+    if(Aluno is null) return Results.NotFound("Aluno não encontrado ou não cadastrado!");
+
+    Imc.AlunoId = id;
+    Imc.Aluno = Aluno;
+    Imc.Peso = NovoImc.Peso;
+    Imc.Altura = NovoImc.Altura;
+    Imc.Im = NovoImc.Peso/(NovoImc.Altura * NovoImc.Altura);
+    
+    if(Imc.Im < 18.5) Imc.Classificacao = "Magreza - GRAU 0";
+    if(Imc.Im >= 18.6) Imc.Classificacao = "Normal - GRAU 0";
+    if(Imc.Im >= 25.0) Imc.Classificacao = "Sobrepeso - GRAU I";
+    if(Imc.Im >= 30.0) Imc.Classificacao = "Obesidade - GRAU II";
+    if(Imc.Im >= 40.0) Imc.Classificacao = "Obesidade Grave - GRAU III";
+    
+    ctx.Imcs.Add(Imc);
+    ctx.SaveChanges();
+    return Results.Created("", Imc);
+});
+
+// lISTAR
+app.MapGet("/api/imc/listar", ([FromServices] Context ctx) =>
+{
+    return Results.Ok(ctx.Imcs.Include(x => x.Aluno).ToList());
+});
+
+app.MapGet("/api/alunos/listar", ([FromServices] Context ctx) =>
+{
+
+    var alunos = ctx.Alunos.ToList();
+    if (alunos.Any())
+    {
+        return Results.Ok(alunos);
+    }
+    return Results.NotFound("Não existem usuários na tabela");
+});
+
+app.MapGet("/api/imc/listar/{id}", ([FromServices] Context ctx, [FromRoute] int id) =>
+{
+    Imc? Imc = ctx.Imcs.Include(x => x.Aluno).FirstOrDefault(a => a.AlunoId == id);
+
+    if (Imc is not null) return Results.Ok(Imc);
+    
+    return Results.NotFound("Nenhum IMC cadastrado");
 });
 
 app.Run();

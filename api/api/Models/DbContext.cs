@@ -1,10 +1,11 @@
-
 using Microsoft.EntityFrameworkCore;
 
 public class Context : DbContext
 {
-    public DbSet<Produto> Produtos { get; set; }
-    public DbSet<Carrinho> Carrinhos { get; set; }
+
+    public DbSet<Imc> Imcs { get; set; }
+    public DbSet<Aluno> Alunos { get; set; }
+
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
